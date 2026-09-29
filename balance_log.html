@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#f7f7f5">
+<title>Balance Log</title>
+<style>
+  :root{
+    --bg:#f7f7f5;
+    --card:#ffffff;
+    --text:#171717;
+    --muted:#8a8a86;
+    --line:#e8e8e4;
+    --green:#2f8f5b;
+    --red:#d24b45;
+    --accent:#202020;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans Thai",Arial,sans-serif}
+  body{min-height:100vh}
+  .app{width:min(100%,720px);margin:0 auto;padding:28px 20px 110px}
+  header{display:flex;justify-content:space-between;align-items:flex-start;margin:4px 0 28px}
+  .title{font-size:29px;font-weight:700;letter-spacing:-.5px}
+  .subtitle{font-size:13px;color:var(--muted);margin-top:6px}
+  .total-card{
+    background:var(--card);border:1px solid var(--line);border-radius:18px;
+    padding:20px 20px 18px;margin-bottom:22px;
+    box-shadow:0 3px 14px rgba(0,0,0,.035)
+  }
+  .label{font-size:13px;color:var(--muted);margin-bottom:6px}
+  .total{font-size:32px;font-weight:700;letter-spacing:-.7px}
+  .total span{font-size:16px;font-weight:500;color:var(--muted);margin-left:4px}
+  .list{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+  .row{
+    position:relative;display:grid;grid-template-columns:1fr auto;gap:12px;
+    padding:18px 20px;border-bottom:1px solid var(--line)
+  }
+  .row:last-child{border-bottom:0}
+  .date{font-size:15px;color:#666660;margin-bottom:6px}
+  .balance{font-size:21px;font-weight:650;letter-spacing:-.25px}
+  .change{align-self:center;font-size:18px;font-weight:600;text-align:right;white-space:nowrap}
+  .positive{color:var(--green)} .negative{color:var(--red)} .neutral{color:var(--muted)}
+  .delete{
+    position:absolute;right:12px;top:10px;border:0;background:transparent;
+    color:#b0b0aa;font-size:18px;display:none;cursor:pointer
+  }
+  .row:hover .delete{display:block}
+  .empty{text-align:center;color:var(--muted);padding:55px 20px;font-size:15px}
+  .fab{
+    position:fixed;right:20px;bottom:24px;width:58px;height:58px;border-radius:50%;
+    border:0;background:#191919;color:white;font-size:30px;line-height:1;
+    box-shadow:0 8px 24px rgba(0,0,0,.18);cursor:pointer;z-index:5
+  }
+  .fab:active{transform:scale(.96)}
+  .modal{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,.32);
+    align-items:flex-end;justify-content:center;z-index:10
+  }
+  .modal.open{display:flex}
+  .sheet{
+    width:min(100%,720px);background:#fff;border-radius:24px 24px 0 0;
+    padding:22px 20px calc(24px + env(safe-area-inset-bottom));
+    box-shadow:0 -10px 35px rgba(0,0,0,.14)
+  }
+  .grab{width:38px;height:4px;background:#d7d7d2;border-radius:5px;margin:0 auto 22px}
+  .sheet h2{margin:0 0 20px;font-size:22px}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:7px}
+  input{
+    width:100%;border:1px solid #dcdcd7;background:#fafaf8;border-radius:12px;
+    padding:14px;font:inherit;font-size:17px;outline:none
+  }
+  input:focus{border-color:#9b9b94;background:#fff}
+  .actions{display:grid;grid-template-columns:1fr 1.5fr;gap:10px;margin-top:20px}
+  button.action{
+    border:0;border-radius:12px;padding:14px;font:inherit;font-weight:600;cursor:pointer
+  }
+  .cancel{background:#efefec;color:#444}
+  .save{background:#191919;color:#fff}
+  .note{font-size:12px;color:var(--muted);margin-top:8px}
+  @media (min-width:700px){
+    .app{padding-top:48px}
+    .modal{align-items:center}
+    .sheet{border-radius:22px;max-width:480px;margin:20px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <div class="title">ยอดเงิน</div>
+      <div class="subtitle">บันทึกยอดคงเหลือ • ไม่จำเป็นต้องบันทึกทุกวัน</div>
+    </div>
+  </header>
+
+  <section class="total-card">
+    <div class="label">ยอดคงเหลือล่าสุด</div>
+    <div class="total" id="total">—<span>บาท</span></div>
+  </section>
+
+  <section class="list" id="list"></section>
+</div>
+
+<button class="fab" id="addBtn" aria-label="เพิ่มรายการ">+</button>
+
+<div class="modal" id="modal">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2>บันทึกยอดเงิน</h2>
+    <form id="form">
+      <div class="field">
+        <label for="date">วันที่</label>
+        <input id="date" type="date" required>
+      </div>
+      <div class="field">
+        <label for="balance">ยอดคงเหลือที่นับจริง</label>
+        <input id="balance" type="number" inputmode="decimal" min="0" step="0.01"
+               placeholder="เช่น 3,149" required>
+        <div class="note">ระบบจะคำนวณ + / − จากยอดครั้งก่อนให้อัตโนมัติ</div>
+      </div>
+      <div class="actions">
+        <button type="button" class="action cancel" id="cancelBtn">ยกเลิก</button>
+        <button type="submit" class="action save">บันทึก</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const KEY = "balance-log-v1";
+let records = JSON.parse(localStorage.getItem(KEY) || "[]");
+
+const $ = id => document.getElementById(id);
+const money = n => new Intl.NumberFormat("th-TH", {
+  maximumFractionDigits: 2
+}).format(n);
+
+function thaiDate(iso){
+  const [y,m,d] = iso.split("-").map(Number);
+  return `${d}.${m}.${String(y+543).slice(-2)}`;
+}
+
+function render(){
+  const list = $("list");
+  const sorted = [...records].sort((a,b)=>a.date.localeCompare(b.date));
+  $("total").innerHTML = sorted.length
+    ? `${money(sorted[sorted.length-1].balance)}<span>บาท</span>`
+    : `—<span>บาท</span>`;
+
+  if(!sorted.length){
+    list.innerHTML = `<div class="empty">ยังไม่มีรายการ<br>กด + เพื่อบันทึกยอดแรก</div>`;
+    return;
+  }
+
+  list.innerHTML = sorted.map((r,i)=>{
+    const prev = i ? sorted[i-1].balance : null;
+    const diff = prev === null ? null : r.balance - prev;
+    let change = `<span class="neutral">—</span>`;
+    if(diff !== null){
+      const cls = diff > 0 ? "positive" : diff < 0 ? "negative" : "neutral";
+      const sign = diff > 0 ? "+" : "";
+      change = `<span class="${cls}">${sign}${money(diff)}</span>`;
+    }
+    return `
+      <div class="row">
+        <div>
+          <div class="date">${thaiDate(r.date)}</div>
+          <div class="balance">${money(r.balance)} บาท</div>
+        </div>
+        <div class="change">${change}</div>
+        <button class="delete" title="ลบ" onclick="removeRecord('${r.id}')">×</button>
+      </div>`;
+  }).join("");
+}
+
+function openModal(){
+  $("modal").classList.add("open");
+  $("date").value = new Date().toISOString().slice(0,10);
+  $("balance").value = "";
+  setTimeout(()=>$("balance").focus(),100);
+}
+function closeModal(){ $("modal").classList.remove("open"); }
+
+$("addBtn").onclick = openModal;
+$("cancelBtn").onclick = closeModal;
+$("modal").addEventListener("click", e=>{
+  if(e.target === $("modal")) closeModal();
+});
+
+$("form").onsubmit = e => {
+  e.preventDefault();
+  const date = $("date").value;
+  const balance = Number($("balance").value);
+  if(!date || !Number.isFinite(balance) || balance < 0) return;
+
+  const existing = records.find(r=>r.date === date);
+  if(existing){
+    existing.balance = balance;
+  }else{
+    records.push({id: Date.now().toString(36), date, balance});
+  }
+  localStorage.setItem(KEY, JSON.stringify(records));
+  render();
+  closeModal();
+};
+
+function removeRecord(id){
+  const r = records.find(x=>x.id===id);
+  if(!r) return;
+  if(confirm(`ลบรายการวันที่ ${thaiDate(r.date)} ?`)){
+    records = records.filter(x=>x.id!==id);
+    localStorage.setItem(KEY, JSON.stringify(records));
+    render();
+  }
+}
+
+render();
+</script>
+</body>
+</html>
